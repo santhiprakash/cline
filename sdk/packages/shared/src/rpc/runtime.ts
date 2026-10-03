@@ -31,6 +31,11 @@ export interface ChatRuntimeConfig extends SessionPromptConfig {
 	toolPolicies?: SessionExecutionConfig["toolPolicies"];
 	toolExecutors?: HubToolExecutorName[];
 	configExtensions?: RuntimeConfigExtensionKind[];
+	/**
+	 * Extra hook-file search directory (`--hooks-dir` / `CLINE_HOOKS_DIR`),
+	 * resolved on the execution host (cline/cline#14766).
+	 */
+	hooksDir?: string;
 }
 
 export interface RuntimeLoggerConfig {

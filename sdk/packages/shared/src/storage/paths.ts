@@ -486,8 +486,15 @@ export function resolveAgentConfigSearchPaths(
 
 export function resolveHooksConfigSearchPaths(
 	workspacePath?: string,
+	extraHooksDir?: string,
 ): string[] {
 	const hooks = [
+		// `extraHooksDir` carries a per-session override (e.g. the CLI
+		// `--hooks-dir` flag forwarded through the session config), while
+		// `CLINE_HOOKS_DIR` is its env-var counterpart read in whatever
+		// process resolves hook files (cline/cline#14766).
+		extraHooksDir?.trim() ?? "",
+		process.env.CLINE_HOOKS_DIR?.trim() ?? "",
 		resolveDocumentsExtensionPath("Hooks"),
 		join(resolveClineDir(), HOOKS_CONFIG_DIRECTORY_NAME),
 	];

@@ -1,6 +1,6 @@
 import { fstatSync } from "node:fs";
 import { homedir } from "node:os";
-import { basename } from "node:path";
+import { basename, resolve } from "node:path";
 import type { ToolPolicy } from "@cline/core";
 
 import { registerDisposable } from "@cline/shared";
@@ -796,7 +796,9 @@ export async function runCli(): Promise<void> {
 		);
 	}
 	if (args.hooksDir?.trim()) {
-		process.env.CLINE_HOOKS_DIR = args.hooksDir.trim();
+		// Resolve to an absolute path up front: hook discovery may run in
+		// the long-lived hub daemon, whose cwd is not the invoking cwd.
+		process.env.CLINE_HOOKS_DIR = resolve(args.hooksDir.trim());
 	}
 	if (args.prompt && !args.interactive) {
 		if (program.args.length > 1 || !promptArgLooksQuoted(program.args[0])) {
@@ -1091,6 +1093,12 @@ export async function runCli(): Promise<void> {
 			enableTools: true,
 			cwd,
 			workspaceRoot,
+			// Forward --hooks-dir / CLINE_HOOKS_DIR through the session config
+			// so the directory reaches a session routed to an already-running
+			// hub daemon, where this process's env never arrives.
+			hooksDir: process.env.CLINE_HOOKS_DIR?.trim()
+				? resolve(cwd, process.env.CLINE_HOOKS_DIR.trim())
+				: undefined,
 			extensionContext: {
 				client: {
 					name: "cline-cli",

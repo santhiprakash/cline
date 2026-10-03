@@ -266,6 +266,14 @@ export interface CoreSessionConfig
 	missionLogIntervalMs?: number;
 	hooks?: AgentHooks;
 	hookErrorMode?: HookErrorMode;
+	/**
+	 * Additional directory searched for hook files, on top of the standard
+	 * hooks search paths (the CLI `--hooks-dir` flag / `CLINE_HOOKS_DIR`
+	 * env var). The path is resolved by the execution host, so it also
+	 * applies to sessions routed through a local hub daemon
+	 * (cline/cline#14766).
+	 */
+	hooksDir?: string;
 	logger?: BasicLogger;
 	telemetry?: ITelemetryService;
 	extensionContext?: ExtensionContext;

@@ -41,15 +41,18 @@ export function emitSessionCreationTelemetry(
 			...agentIdentity,
 		});
 	}
-	captureHookDiscoveryTelemetry(config.telemetry, { workspacePath });
+	captureHookDiscoveryTelemetry(config.telemetry, {
+		workspacePath,
+		hooksDir: config.hooksDir,
+	});
 }
 
 export function captureHookDiscoveryTelemetry(
 	telemetry: ITelemetryService | undefined,
-	options: { workspacePath: string },
+	options: { workspacePath: string; hooksDir?: string },
 ): void {
 	const globalHooksDir = resolveDocumentsExtensionPath("Hooks");
-	const entries = listHookConfigFiles(options.workspacePath);
+	const entries = listHookConfigFiles(options.workspacePath, options.hooksDir);
 	const counts = new Map<string, { global: number; workspace: number }>();
 	for (const entry of entries) {
 		const hookName = entry.hookEventName ?? "unknown";

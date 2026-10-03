@@ -348,6 +348,7 @@ export class HubSessionClient {
 				agentPluginPaths: request.agentPluginPaths,
 				missionLogIntervalSteps: request.missionStepInterval,
 				missionLogIntervalMs: request.missionTimeIntervalMs,
+				hooksDir: request.hooksDir,
 			},
 			metadata: {
 				source: request.source ?? "cli",
@@ -517,6 +518,7 @@ export class HubSessionClient {
 								agentPluginPaths: request.agentPluginPaths,
 								missionLogIntervalSteps: request.missionStepInterval,
 								missionLogIntervalMs: request.missionTimeIntervalMs,
+								hooksDir: request.hooksDir,
 							},
 							metadata: {
 								source: request.source ?? "cli",

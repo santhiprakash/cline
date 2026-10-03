@@ -10,8 +10,9 @@ export { HOOKS_CONFIG_DIRECTORY_NAME };
 
 export function resolveHooksConfigSearchPaths(
 	workspacePath?: string,
+	extraHooksDir?: string,
 ): string[] {
-	return resolveHooksConfigSearchPathsFromShared(workspacePath);
+	return resolveHooksConfigSearchPathsFromShared(workspacePath, extraHooksDir);
 }
 
 export enum HookConfigFileName {
@@ -80,12 +81,14 @@ export interface HookConfigFileEntry {
 
 export function listHookConfigFiles(
 	workspacePath?: string,
+	extraHooksDir?: string,
 ): HookConfigFileEntry[] {
 	const entries: HookConfigFileEntry[] = [];
 	const seen = new Set<string>();
-	const directories = resolveHooksConfigSearchPaths(workspacePath).filter(
-		(directory) => existsSync(directory),
-	);
+	const directories = resolveHooksConfigSearchPaths(
+		workspacePath,
+		extraHooksDir,
+	).filter((directory) => existsSync(directory));
 
 	for (const directory of directories) {
 		try {

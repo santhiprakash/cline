@@ -1,3 +1,4 @@
+import { resolve } from "node:path";
 import type {
 	Agent,
 	AgentSideConnection,
@@ -789,6 +790,9 @@ export class AcpAgent implements Agent {
 			enableTools: true,
 			cwd,
 			workspaceRoot,
+			hooksDir: process.env.CLINE_HOOKS_DIR?.trim()
+				? resolve(cwd, process.env.CLINE_HOOKS_DIR.trim())
+				: undefined,
 			extensionContext: {
 				client: {
 					name: "cline-acp",

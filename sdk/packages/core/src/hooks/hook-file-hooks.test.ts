@@ -944,4 +944,49 @@ describe("createHookConfigFileHooks", () => {
 			await rm(outputPath, { force: true });
 		}
 	});
+
+	it("discovers hooks from the extra hooksDir outside the workspace", async () => {
+		// A standalone dir that is not one of the standard search roots —
+		// the pre-fix behavior silently ignored such directories entirely
+		// (cline/cline#14766).
+		const hooksDir = await mkdtemp(join(tmpdir(), "hooks-extra-"));
+		const workspace = await mkdtemp(join(tmpdir(), "hooks-workspace-"));
+		await writeFile(
+			join(hooksDir, "PreToolUse"),
+			'echo \'HOOK_CONTROL\t{"cancel":true,"context":"extra-dir-ok"}\'\nexit 0\n',
+			"utf8",
+		);
+		try {
+			expect(
+				createHookConfigFileHooks({
+					cwd: workspace,
+					workspacePath: workspace,
+					detachAsyncHooks: false,
+				}),
+			).toBeUndefined();
+
+			const hooks = createHookConfigFileHooks({
+				cwd: workspace,
+				workspacePath: workspace,
+				hooksDir,
+				detachAsyncHooks: false,
+			});
+			expect(hooks?.beforeTool).toBeTypeOf("function");
+			const control = await hooks?.beforeTool?.(beforeToolContext());
+			expect(control).toMatchObject({ stop: true });
+		} finally {
+			await rm(hooksDir, {
+				recursive: true,
+				force: true,
+				maxRetries: 3,
+				retryDelay: 250,
+			});
+			await rm(workspace, {
+				recursive: true,
+				force: true,
+				maxRetries: 3,
+				retryDelay: 250,
+			});
+		}
+	});
 });

@@ -103,6 +103,7 @@ export async function runZen(
 			source: "cline-cli-zen",
 			interactive: false,
 			logger: config.loggerConfig,
+			hooksDir: config.hooksDir,
 		};
 
 		const started = await sessionClient.startRuntimeSession(startRequest);

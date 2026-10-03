@@ -48,6 +48,7 @@ type EnvSnapshot = {
 	CLINE_PROVIDER_SETTINGS_PATH: string | undefined;
 	CLINE_SESSION_DATA_DIR: string | undefined;
 	CLINE_TEAM_DATA_DIR: string | undefined;
+	CLINE_HOOKS_DIR: string | undefined;
 };
 
 function captureEnv(): EnvSnapshot {
@@ -62,6 +63,7 @@ function captureEnv(): EnvSnapshot {
 		CLINE_PROVIDER_SETTINGS_PATH: process.env.CLINE_PROVIDER_SETTINGS_PATH,
 		CLINE_SESSION_DATA_DIR: process.env.CLINE_SESSION_DATA_DIR,
 		CLINE_TEAM_DATA_DIR: process.env.CLINE_TEAM_DATA_DIR,
+		CLINE_HOOKS_DIR: process.env.CLINE_HOOKS_DIR,
 	};
 }
 
@@ -78,6 +80,11 @@ function restoreEnv(snapshot: EnvSnapshot): void {
 		snapshot.CLINE_PROVIDER_SETTINGS_PATH;
 	process.env.CLINE_SESSION_DATA_DIR = snapshot.CLINE_SESSION_DATA_DIR;
 	process.env.CLINE_TEAM_DATA_DIR = snapshot.CLINE_TEAM_DATA_DIR;
+	if (snapshot.CLINE_HOOKS_DIR === undefined) {
+		delete process.env.CLINE_HOOKS_DIR;
+	} else {
+		process.env.CLINE_HOOKS_DIR = snapshot.CLINE_HOOKS_DIR;
+	}
 }
 
 describe("storage path resolution", () => {
@@ -215,6 +222,32 @@ describe("storage path resolution", () => {
 		expect(resolveHooksConfigSearchPaths()).not.toContain(
 			join("/tmp/home", ".cline", "data", HOOKS_CONFIG_DIRECTORY_NAME),
 		);
+	});
+
+	it("includes CLINE_HOOKS_DIR and an explicit hooks dir in search paths", () => {
+		snapshot = captureEnv();
+		process.env.CLINE_HOOKS_DIR = "/tmp/env-hooks";
+
+		expect(resolveHooksConfigSearchPaths()).toEqual(
+			expect.arrayContaining(["/tmp/env-hooks"]),
+		);
+		expect(
+			resolveHooksConfigSearchPaths("/tmp/work", "/tmp/explicit-hooks"),
+		).toEqual(
+			expect.arrayContaining([
+				"/tmp/explicit-hooks",
+				"/tmp/env-hooks",
+				join("/tmp/work", ".clinerules", HOOKS_CONFIG_DIRECTORY_NAME),
+				join("/tmp/work", ".cline", HOOKS_CONFIG_DIRECTORY_NAME),
+			]),
+		);
+		// Explicit dir and env dir sit ahead of the standard roots.
+		expect(
+			resolveHooksConfigSearchPaths("/tmp/work", "/tmp/explicit-hooks").slice(
+				0,
+				2,
+			),
+		).toEqual(["/tmp/explicit-hooks", "/tmp/env-hooks"]);
 	});
 
 	it("resolves global rules from ~/.cline", () => {
