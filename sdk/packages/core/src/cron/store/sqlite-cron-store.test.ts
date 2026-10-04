@@ -8,8 +8,47 @@ import {
 	ONE_TIME_SCHEDULE_RUN_AT_METADATA_KEY,
 } from "@cline/shared";
 import { loadSqliteDb } from "@cline/shared/db";
-import { afterEach, beforeEach, describe, expect, it } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { SqliteCronStore } from "./sqlite-cron-store";
+
+// The production hub daemon runs on Bun, where bun:sqlite resolves named
+// parameters by literal key only — a bare `{ now: value }` binding never
+// matches `:now` and silently binds NULL. Vitest runs on node:sqlite, which
+// accepts bare names and would mask that regression, so emulate the strict
+// binding for every statement the store prepares.
+vi.mock("@cline/shared/db", async (importOriginal) => {
+	const actual = await importOriginal<typeof import("@cline/shared/db")>();
+	const strictParams = (params: unknown[]): unknown[] =>
+		params.length === 1 &&
+		typeof params[0] === "object" &&
+		params[0] !== null &&
+		!Array.isArray(params[0])
+			? [
+					Object.fromEntries(
+						Object.entries(params[0] as Record<string, unknown>).filter(
+							([key]) => /^[:@$]/.test(key),
+						),
+					),
+				]
+			: params;
+	return {
+		...actual,
+		loadSqliteDb: (filePath: string) => {
+			const db = actual.loadSqliteDb(filePath);
+			return {
+				...db,
+				prepare: (sql: string) => {
+					const stmt = db.prepare(sql);
+					return {
+						run: (...params: unknown[]) => stmt.run(...strictParams(params)),
+						get: (...params: unknown[]) => stmt.get(...strictParams(params)),
+						all: (...params: unknown[]) => stmt.all(...strictParams(params)),
+					};
+				},
+			};
+		},
+	};
+});
 
 function tempDbPath(): { dir: string; path: string } {
 	const dir = mkdtempSync(join(tmpdir(), "cline-cron-store-"));
@@ -411,6 +450,29 @@ describe("SqliteCronStore: runs", () => {
 		expect(reclaimed[0]?.run.runId).toBe(firstClaims[0]?.run.runId);
 		expect(reclaimed[0]?.claimToken).not.toBe(firstClaims[0]?.claimToken);
 		expect(reclaimed[0]?.run.attemptCount).toBe(2);
+	});
+
+	it("claims a due run and leaves a not-yet-due run queued", () => {
+		const spec = seedOneOff();
+		const due = store.enqueueRun({
+			specId: spec.specId,
+			specRevision: 1,
+			triggerKind: "schedule",
+			scheduledFor: new Date(Date.now() - 60_000).toISOString(),
+		});
+		const notDue = store.enqueueRun({
+			specId: spec.specId,
+			specRevision: 1,
+			triggerKind: "schedule",
+			scheduledFor: new Date(Date.now() + 3_600_000).toISOString(),
+		});
+		const claims = store.claimDueRuns({
+			nowIso: new Date().toISOString(),
+			leaseMs: 30_000,
+		});
+		expect(claims.map((claim) => claim.run.runId)).toEqual([due.runId]);
+		expect(claims[0]?.run.attemptCount).toBe(1);
+		expect(store.getRun(notDue.runId)?.status).toBe("queued");
 	});
 
 	it("cancels queued runs when the spec is removed", () => {

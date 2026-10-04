@@ -1,4 +1,5 @@
 import { AgentRuntimeAbortError } from "@cline/agents";
+import type { BasicLogger } from "@cline/shared";
 import {
 	captureSdkError,
 	ensureLoopbackProxyBypass,
@@ -22,6 +23,7 @@ import {
 	resolveSharedHubOwnerContext,
 } from "../discovery/workspace";
 import { startHubWebSocketServer } from "../server";
+import { logHubMessage } from "../server/hub-server-logging";
 import { describeAddressInUse } from "./bind-diagnostics";
 import {
 	createHubDaemonShutdownCoordinator,
@@ -155,6 +157,15 @@ export function isAbortRejection(reason: unknown): boolean {
 	return false;
 }
 
+// Route the cron service's internal warnings (tick/claim/runner failures) into
+// the daemon's JSON-lines log stream so they land in the hub daemon log
+// instead of being swallowed when no host logger is injected.
+const cronDaemonLogger: BasicLogger = {
+	debug: (message, metadata) => logHubMessage("debug", message, metadata),
+	log: (message, metadata) => logHubMessage("info", message, metadata),
+	error: (message, metadata) => logHubMessage("error", message, metadata),
+};
+
 async function main(): Promise<void> {
 	ensureLoopbackProxyBypass();
 	const options = parseArgs(process.argv.slice(2));
@@ -277,7 +288,10 @@ async function main(): Promise<void> {
 			runtimeHandlers: createLocalHubScheduleRuntimeHandlers({
 				telemetry: daemonTelemetry.telemetry,
 			}),
-			cronOptions: { workspaceRoot: options.cwd },
+			cronOptions: {
+				workspaceRoot: options.cwd,
+				logger: cronDaemonLogger,
+			},
 		});
 	} catch (error) {
 		// Losing the singleton race to a live Hub is expected, not a failure.

@@ -1618,32 +1618,42 @@ export class SqliteCronStore {
 		try {
 			// Re-evaluate capacity after every claim in the same write transaction.
 			// Filtering before LIMIT lets unrelated specs pass a saturated backlog.
+			// Bind positionally: bun:sqlite (the hub daemon runtime) resolves named
+			// parameters by literal key, so a bare `{ now, capacity }` object
+			// silently binds NULL and the claim loop would never find a row.
 			const nextDueRun = this.db.prepare(`
 				SELECT * FROM cron_runs
 				WHERE (
 					status = 'queued'
-					OR (status = 'running' AND claim_until_at <= :now AND completed_at IS NULL)
+					OR (status = 'running' AND claim_until_at <= ? AND completed_at IS NULL)
 				)
-				AND (scheduled_for IS NULL OR scheduled_for <= :now)
+				AND (scheduled_for IS NULL OR scheduled_for <= ?)
 				AND (
 					SELECT COUNT(*) FROM cron_runs active
-					WHERE active.status = 'running' AND active.claim_until_at > :now
-				) < :capacity
+					WHERE active.status = 'running' AND active.claim_until_at > ?
+				) < ?
 				AND (
 					SELECT COUNT(*) FROM cron_runs active
 					WHERE active.spec_id = cron_runs.spec_id
-					AND active.status = 'running' AND active.claim_until_at > :now
+					AND active.status = 'running' AND active.claim_until_at > ?
 				) < COALESCE((
 					SELECT MAX(1, max_parallel) FROM cron_specs WHERE spec_id = cron_runs.spec_id
 				), 1)
 				ORDER BY COALESCE(scheduled_for, created_at) ASC, rowid ASC
 				LIMIT 1
 			`);
+			const maxConcurrency = Math.max(
+				1,
+				Math.floor(options.maxConcurrency ?? 10),
+			);
 			while (claimed.length < limit) {
-				const row = nextDueRun.get({
-					now: referenceIso,
-					capacity: Math.max(1, Math.floor(options.maxConcurrency ?? 10)),
-				});
+				const row = nextDueRun.get(
+					referenceIso,
+					referenceIso,
+					referenceIso,
+					maxConcurrency,
+					referenceIso,
+				);
 				if (!row) break;
 				const runId = asString(row.run_id);
 				if (!runId) continue;
